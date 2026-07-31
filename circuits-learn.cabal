@@ -9,10 +9,11 @@ author: Tony Day
 maintainer: tonyday567@gmail.com
 homepage: https://github.com/tonyday567/circuits-learn#readme
 bug-reports: https://github.com/tonyday567/circuits-learn/issues
-synopsis: Categorical deep learning checkbox — optimisers as Processes
+synopsis: Adam and EWMA optimisers as Processes
 description:
-  Optimisers as Process compositions and supervised learning through
-  iterateSystem. The frontier §5 supervised fork: no machina / sampling gate.
+  Reference oracles for Adam and exponentially-weighted moving average
+  (EWMA) optimisers expressed as 'Process' coalgebras. Non-zero exit
+  on mismatch with hand recurrences.
 
 build-type: Simple
 tested-with:
