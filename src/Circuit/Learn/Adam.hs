@@ -1,17 +1,11 @@
-{-# LANGUAGE DerivingStrategies #-}
-
--- | Adam as a 'Process' and as a reference recurrence.
---
--- The frontier claim is that Adam decomposes into two EWMAs plus a pointwise
--- quotient.  This module starts with a direct Moore-machine Adam (with bias
--- correction) and verifies its arithmetic against a hand recurrence on a fixed
--- gradient trace.
 module Circuit.Learn.Adam
   ( -- * EWMA building block
     ewma,
+    ewmaDirect,
 
     -- * Adam
     adam,
+    adamDecomposed,
     adamReference,
     adamUpdates,
   )
@@ -29,6 +23,14 @@ ewma alpha s0 = Process inject step extract
     inject x0 = alpha * x0 + (1 - alpha) * s0
     step s x = alpha * x + (1 - alpha) * s
     extract s = s
+
+-- | Direct EWMA recurrence on a list (no 'Process' overhead).
+-- First element is after first observation.
+ewmaDirect :: Double -> Double -> [Double] -> [Double]
+ewmaDirect _ _ [] = []
+ewmaDirect alpha s0 (x0 : xs) = scanl' step (alpha * x0 + (1 - alpha) * s0) xs
+  where
+    step s x = alpha * x + (1 - alpha) * s
 
 -- | Adam parameter update as a 'Process'.
 --
@@ -50,6 +52,22 @@ adam alpha beta1 beta2 eps = Process inject step extract
       let mHat = m / (1 - beta1 ** t)
           vHat = v / (1 - beta2 ** t)
        in alpha * mHat / (sqrt vHat + eps)
+
+-- | Adam decomposed into two independent EWMA channels (the frontier claim).
+--
+-- The m channel is an EWMA of raw gradients (@beta1@-weighted), the v channel
+-- is an EWMA of squared gradients (@beta2@-weighted).  Each is computed
+-- independently via 'scanl'', then combined with the bias-corrected quotient.
+-- This produces exactly the same updates as the monolithic 'adam' Process.
+adamDecomposed :: Double -> Double -> Double -> Double -> [Double] -> [Double]
+adamDecomposed alpha beta1 beta2 eps gs =
+  let ms = drop 1 $ scanl' (\m g -> beta1 * m + (1 - beta1) * g) 0 gs
+      vs = drop 1 $ scanl' (\v g -> beta2 * v + (1 - beta2) * g * g) 0 gs
+      update t m v =
+        let mHat = m / (1 - beta1 ** fromIntegral t)
+            vHat = v / (1 - beta2 ** fromIntegral t)
+         in alpha * mHat / (sqrt vHat + eps)
+   in zipWith3 update [1 :: Int ..] ms vs
 
 -- | Reference Adam state recurrence on a gradient trace.
 --

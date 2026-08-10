@@ -3,13 +3,23 @@
 -- Verifies:
 --   1. Para composition law (Category associativity + identity)
 --   2. Para composition == Loop(,) constant-state slice
---   3. Pre-existing Adam / EWMA oracles
+--   3. Adam / EWMA oracles
+--   4. Two-EWMA Adam decomposition
+--   5. Toy 2-layer NN fit (loss decreases)
 --
 -- Non-zero exit code on any mismatch.
 module Main where
 
 import Circuit.Channel (trace)
-import Circuit.Learn.Adam (adam, adamReference, adamUpdates, ewma)
+import Circuit.Learn.Adam
+  ( adam,
+    adamDecomposed,
+    adamReference,
+    adamUpdates,
+    ewma,
+    ewmaDirect,
+  )
+import Circuit.Learn.Fit (fit, forward, loss, toyData)
 import Circuit.Learn.Para (Para (..), forgetPara, liftPara, runPara)
 import Circuit.Process (scan)
 import Control.Category (id, (.))
@@ -70,6 +80,69 @@ checkAdam = do
       ok = allNear epsLoose expected actual
   report "Adam vs reference recurrence" ok
   pure ok
+
+-- ---------------------------------------------------------------------------
+-- Two-EWMA Adam decomposition
+-- ---------------------------------------------------------------------------
+
+checkAdamDecomposed :: IO Bool
+checkAdamDecomposed = do
+  let alpha = 0.01
+      beta1 = 0.9
+      beta2 = 0.999
+      eps = 1e-8
+
+  -- 1. Decomposed Adam vs direct Adam on same trace
+  let direct = scan (adam alpha beta1 beta2 eps) gradTrace
+      decomposed = adamDecomposed alpha beta1 beta2 eps gradTrace
+      ok1 = allNear epsLoose direct decomposed
+  report "Adam decomposed == direct (output)" ok1
+
+  -- 2. m channel of reference matches independent EWMA of gradients
+  --    Adam uses beta1 as OLD-value weight; ewmaDirect uses alpha as NEW-value weight.
+  --    So ewmaDirect (1-beta1) 0 == Adam's m channel.
+  let (g0, gs) = case gradTrace of (x : xs) -> (x, xs); [] -> error "empty trace"
+      refStates = adamReference beta1 beta2 g0 gs
+      refM = map (\(m, _, _) -> m) refStates
+      directM = ewmaDirect (1 - beta1) 0 gradTrace
+      ok2 = allNear epsTight refM directM
+  report "Adam m channel == EWMA of gradients" ok2
+
+  -- 3. v channel of reference matches independent EWMA of squared gradients
+  let refV = map (\(_, v, _) -> v) refStates
+      directV = ewmaDirect (1 - beta2) 0 (map (** 2) gradTrace)
+      ok3 = allNear epsTight refV directV
+  report "Adam v channel == EWMA of squared gradients" ok3
+
+  pure (ok1 && ok2 && ok3)
+
+-- ---------------------------------------------------------------------------
+-- Toy 2-layer NN fit
+-- ---------------------------------------------------------------------------
+
+checkToyFit :: IO Bool
+checkToyFit = do
+  let -- Initial weights: small random-like values
+      w0 = [0.1, -0.2, 0.05, -0.05, 0.3, -0.1, 0.0] :: [Double]
+      steps = 200
+
+  -- Run fit
+  let (_wN, initLoss, finalLoss) = fit steps w0 toyData
+
+  -- 1. Loss decreases
+  let ok1 = finalLoss < initLoss
+  report "Toy fit: loss decreases" ok1
+
+  -- 2. Forward pass produces finite output
+  let y0 = forward w0 1.0
+      ok2 = not (isNaN y0 || isInfinite y0)
+  report "Toy fit: forward pass finite" ok2
+
+  -- 3. Loss is non-negative
+  let ok3 = initLoss >= 0 && finalLoss >= 0
+  report "Toy fit: loss non-negative" ok3
+
+  pure (ok1 && ok2 && ok3)
 
 -- ---------------------------------------------------------------------------
 -- Para oracles
@@ -139,10 +212,12 @@ main :: IO ()
 main = do
   okEWMA <- checkEWMA
   okAdam <- checkAdam
+  okAdamDec <- checkAdamDecomposed
+  okToyFit <- checkToyFit
   okAssoc <- checkAssoc
   okId <- checkIdentity
   okConstState <- checkConstantState
-  let allOk = and [okEWMA, okAdam, okAssoc, okId, okConstState]
+  let allOk = and [okEWMA, okAdam, okAdamDec, okToyFit, okAssoc, okId, okConstState]
   if allOk
     then putStrLn "circuits-learn axioma: all checks passed"
     else do

@@ -47,6 +47,7 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit.Learn.Adam
+    Circuit.Learn.Fit
     Circuit.Learn.Para
   build-depends:
     base >=4.18 && <5,
