@@ -47,9 +47,11 @@ library
   hs-source-dirs: src
   exposed-modules:
     Circuit.Learn.Adam
+    Circuit.Learn.Para
   build-depends:
     base >=4.18 && <5,
     circuits >=0.2 && <0.4,
+    profunctors >=5.6.3 && <6,
 
 executable circuits-learn-axioma
   import: ghc-options-stanza
