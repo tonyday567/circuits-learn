@@ -6,6 +6,8 @@
 --   3. Adam / EWMA oracles
 --   4. Two-EWMA Adam decomposition
 --   5. Toy 2-layer NN fit (loss decreases)
+--   6. Ephemeral 'Progress'/'Experience' framing: SGD over a dataset decreases
+--      loss.
 --
 -- Non-zero exit code on any mismatch.
 module Main where
@@ -18,6 +20,13 @@ import Circuit.Learn.Adam
     adamUpdates,
     ewma,
     ewmaDirect,
+  )
+import Circuit.Learn.Ephemeral
+  ( Experience (..),
+    Progress (..),
+    Task (..),
+    learn,
+    sgd,
   )
 import Circuit.Learn.Fit (fit, forward, loss, toyData)
 import Circuit.Learn.Para (Para (..), forgetPara, liftPara, runPara)
@@ -145,6 +154,45 @@ checkToyFit = do
   pure (ok1 && ok2 && ok3)
 
 -- ---------------------------------------------------------------------------
+-- Ephemeral Progress / Experience framing
+-- ---------------------------------------------------------------------------
+
+-- | Linear model @y = m*x + b@ with parameters @[m, b]@.
+linearForward :: [Double] -> Double -> Double
+linearForward [m, b] x = m * x + b
+linearForward _ _ = error "linearForward: expected [m, b]"
+
+-- | Squared-error loss for one example.
+linearLoss :: [Double] -> (Double, Double) -> Double
+linearLoss params (x, y) = (linearForward params x - y) ** 2
+
+-- | Gradient of squared error for one example.
+linearGrad :: [Double] -> (Double, Double) -> [Double]
+linearGrad [m, b] (x, y) =
+  let yPred = m * x + b
+      err = yPred - y
+   in [2 * err * x, 2 * err]
+linearGrad _ _ = error "linearGrad: expected [m, b]"
+
+-- | Total loss over a dataset.
+totalLoss :: [Double] -> [(Double, Double)] -> Double
+totalLoss params dataset = sum (map (linearLoss params) dataset)
+
+-- | Check that folding SGD progress over an experience set decreases loss.
+checkEphemeralSGD :: IO Bool
+checkEphemeralSGD = do
+  let dataset = [(0.0, 0.0), (1.0, 2.0), (2.0, 4.0)]
+      experience = Experience dataset
+      prog = sgd 0.05 linearGrad
+      params0 = [0.0, 0.0]
+      paramsN = iterate (learn prog experience) params0 !! 100
+      initLoss = totalLoss params0 dataset
+      finalLoss = totalLoss paramsN dataset
+      ok = finalLoss < initLoss && finalLoss < 0.01
+  report ("Ephemeral SGD loss (init=" ++ show initLoss ++ ", final=" ++ show finalLoss ++ ")") ok
+  pure ok
+
+-- ---------------------------------------------------------------------------
 -- Para oracles
 -- ---------------------------------------------------------------------------
 
@@ -214,10 +262,11 @@ main = do
   okAdam <- checkAdam
   okAdamDec <- checkAdamDecomposed
   okToyFit <- checkToyFit
+  okEphemeralSGD <- checkEphemeralSGD
   okAssoc <- checkAssoc
   okId <- checkIdentity
   okConstState <- checkConstantState
-  let allOk = and [okEWMA, okAdam, okAdamDec, okToyFit, okAssoc, okId, okConstState]
+  let allOk = and [okEWMA, okAdam, okAdamDec, okToyFit, okEphemeralSGD, okAssoc, okId, okConstState]
   if allOk
     then putStrLn "circuits-learn axioma: all checks passed"
     else do
