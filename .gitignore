@@ -7,3 +7,8 @@ stack.yaml.lock
 /.hkgr/
 .ghcid-output
 .ghcid-trigger
+dist-newstyle/
+*.ghc.environment.*
+.stack-work/
+.DS_Store
+cabal.project.local
