@@ -12,7 +12,7 @@
 -- Non-zero exit code on any mismatch.
 module Main where
 
-import Circuit.Channel (trace)
+import Circuit.Traced (yank)
 import Circuit.Learn.Adam
   ( adam,
     adamDecomposed,
@@ -36,7 +36,7 @@ import Data.List (scanl')
 import System.Exit (exitFailure)
 import Prelude hiding (id, (.))
 
--- | A short, deterministic gradient trace.
+-- | A short, deterministic gradient yank.
 gradTrace :: [Double]
 gradTrace = [0.5, -0.3, 0.2, -0.8, 0.1, 0.4, -0.2]
 
@@ -83,7 +83,7 @@ checkAdam = do
       beta1 = 0.9
       beta2 = 0.999
       eps = 1e-8
-      (g0, gs) = case gradTrace of (x : xs) -> (x, xs); [] -> error "empty trace"
+      (g0, gs) = case gradTrace of (x : xs) -> (x, xs); [] -> error "empty yank"
       expected = adamUpdates alpha beta1 beta2 eps (adamReference beta1 beta2 g0 gs)
       actual = scan (adam alpha beta1 beta2 eps) gradTrace
       ok = allNear epsLoose expected actual
@@ -101,7 +101,7 @@ checkAdamDecomposed = do
       beta2 = 0.999
       eps = 1e-8
 
-  -- 1. Decomposed Adam vs direct Adam on same trace
+  -- 1. Decomposed Adam vs direct Adam on same yank
   let direct = scan (adam alpha beta1 beta2 eps) gradTrace
       decomposed = adamDecomposed alpha beta1 beta2 eps gradTrace
       ok1 = allNear epsLoose direct decomposed
@@ -110,7 +110,7 @@ checkAdamDecomposed = do
   -- 2. m channel of reference matches independent EWMA of gradients
   --    Adam uses beta1 as OLD-value weight; ewmaDirect uses alpha as NEW-value weight.
   --    So ewmaDirect (1-beta1) 0 == Adam's m channel.
-  let (g0, gs) = case gradTrace of (x : xs) -> (x, xs); [] -> error "empty trace"
+  let (g0, gs) = case gradTrace of (x : xs) -> (x, xs); [] -> error "empty yank"
       refStates = adamReference beta1 beta2 g0 gs
       refM = map (\(m, _, _) -> m) refStates
       directM = ewmaDirect (1 - beta1) 0 gradTrace
@@ -229,25 +229,25 @@ checkIdentity = do
   report "Para identity: f . id == f" ok2
   pure (ok1 && ok2)
 
--- | Constant-state equivalence: para threading == trace.
+-- | Constant-state equivalence: para threading == yank.
 --
 -- For a function @f :: a -> b@ (ignoring the parameter), both paths give the
 -- same result:
 --   @forgetPara p (liftPara f) a == f a@  (by construction)
---   @trace (\\(s, a) -> (s, f a)) a == f a@  (constant-state trace law)
+--   @yank (\\(s, a) -> (s, f a)) a == f a@  (constant-state yank law)
 --
--- The trace law is L1/L2 from circuits/app/axioma.hs, promoted here.
+-- The yank law is L1/L2 from circuits/app/axioma.hs, promoted here.
 checkConstantState :: IO Bool
 checkConstantState = do
-  -- L1: threading constant state through trace yields function application
+  -- L1: threading constant state through yank yields function application
   let l1Inputs = [42 :: Int, 0, -1, 100]
       f1 = show
-      ok1 = and [trace (\(p, a) -> (p, f1 a)) x == f1 x | x <- l1Inputs]
+      ok1 = and [yank (\(p, a) -> (p, f1 a)) x == f1 x | x <- l1Inputs]
   report "Trace constant-state: show (L1)" ok1
   -- L2: same with arithmetic
   let l2Inputs = [5 :: Int, 0, -3, 100]
       f2 = (+ 10)
-      ok2 = and [trace (\(p, a) -> (p, f2 a)) x == f2 x | x <- l2Inputs]
+      ok2 = and [yank (\(p, a) -> (p, f2 a)) x == f2 x | x <- l2Inputs]
   report "Trace constant-state: (+10) (L2)" ok2
   -- Para version: liftPara then forgetPara == identity on the function
   let ps = [1, 2, 3, 5] :: [Int]
