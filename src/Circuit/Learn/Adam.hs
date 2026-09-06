@@ -11,20 +11,20 @@ module Circuit.Learn.Adam
   )
 where
 
-import Circuit.Process (Mealy (..), scan)
+import Circuit.Process (Moore (..), scan)
 import Data.List (scanl')
 
--- | Exponentially weighted moving average as a 'Mealy'.
+-- | Exponentially weighted moving average as a 'Moore'.
 --
 -- State is the current EWMA value; output is the same value.
-ewma :: Double -> Double -> Mealy Double Double
-ewma alpha s0 = Mealy inject step extract
+ewma :: Double -> Double -> Moore Double Double
+ewma alpha s0 = Moore inject step extract
   where
     inject x0 = alpha * x0 + (1 - alpha) * s0
     step s x = alpha * x + (1 - alpha) * s
     extract s = s
 
--- | Direct EWMA recurrence on a list (no 'Mealy' overhead).
+-- | Direct EWMA recurrence on a list (no 'Moore' overhead).
 -- First element is after first observation.
 ewmaDirect :: Double -> Double -> [Double] -> [Double]
 ewmaDirect _ _ [] = []
@@ -32,12 +32,12 @@ ewmaDirect alpha s0 (x0 : xs) = scanl' step (alpha * x0 + (1 - alpha) * s0) xs
   where
     step s x = alpha * x + (1 - alpha) * s
 
--- | Adam parameter update as a 'Mealy'.
+-- | Adam parameter update as a 'Moore'.
 --
 -- Input: gradient. Output: parameter update (not the new parameter).
 -- State: @(m, v, t)@ — first moment, second moment, timestep.
-adam :: Double -> Double -> Double -> Double -> Mealy Double Double
-adam alpha beta1 beta2 eps = Mealy inject step extract
+adam :: Double -> Double -> Double -> Double -> Moore Double Double
+adam alpha beta1 beta2 eps = Moore inject step extract
   where
     inject g0 =
       let m1 = (1 - beta1) * g0
@@ -58,7 +58,7 @@ adam alpha beta1 beta2 eps = Mealy inject step extract
 -- The m channel is an EWMA of raw gradients (@beta1@-weighted), the v channel
 -- is an EWMA of squared gradients (@beta2@-weighted).  Each is computed
 -- independently via 'scanl'', then combined with the bias-corrected quotient.
--- This produces exactly the same updates as the monolithic 'adam' Mealy.
+-- This produces exactly the same updates as the monolithic 'adam' Moore.
 adamDecomposed :: Double -> Double -> Double -> Double -> [Double] -> [Double]
 adamDecomposed alpha beta1 beta2 eps gs =
   let ms = drop 1 $ scanl' (\m g -> beta1 * m + (1 - beta1) * g) 0 gs
