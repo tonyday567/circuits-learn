@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Circuit.Learn.Adam
   ( -- * EWMA building block
     ewma,
@@ -11,7 +13,7 @@ module Circuit.Learn.Adam
   )
 where
 
-import Circuit.Process (Moore (..), scan)
+import Circuit.Cell (Moore, scan, pattern Moore)
 import Data.List (scanl')
 
 -- | Exponentially weighted moving average as a 'Moore'.

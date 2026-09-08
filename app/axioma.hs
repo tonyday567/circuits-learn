@@ -12,6 +12,7 @@
 -- Non-zero exit code on any mismatch.
 module Main where
 
+import Circuit.Cell (scan)
 import Circuit.Learn.Adam
   ( adam,
     adamDecomposed,
@@ -29,7 +30,6 @@ import Circuit.Learn.Ephemeral
   )
 import Circuit.Learn.Fit (fit, forward, loss, toyData)
 import Circuit.Learn.Para (Para (..), forgetPara, liftPara, runPara)
-import Circuit.Process (scan)
 import Circuit.Traced (yank)
 import Control.Category (id, (.))
 import Data.List (scanl')
