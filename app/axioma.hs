@@ -12,7 +12,7 @@
 -- Non-zero exit code on any mismatch.
 module Main where
 
-import Circuit.Cell (scan)
+import Circuit.GMachine (scan)
 import Circuit.Learn.Adam
   ( adam,
     adamDecomposed,

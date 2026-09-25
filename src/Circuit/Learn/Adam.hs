@@ -13,7 +13,7 @@ module Circuit.Learn.Adam
   )
 where
 
-import Circuit.Cell (Moore, scan, pattern Moore)
+import Circuit.GMachine (Moore, scan, pattern Moore)
 import Data.List (scanl')
 
 -- | Exponentially weighted moving average as a 'Moore'.
