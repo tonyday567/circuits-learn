@@ -13,14 +13,14 @@ module Circuit.Learn.Adam
   )
 where
 
-import Circuit.GMachine (Moore, scan, pattern Moore)
+import Circuit.GMachine (Moore, moore, scan)
 import Data.List (scanl')
 
 -- | Exponentially weighted moving average as a 'Moore'.
 --
 -- State is the current EWMA value; output is the same value.
 ewma :: Double -> Double -> Moore Double Double
-ewma alpha s0 = Moore inject step extract
+ewma alpha s0 = moore inject step extract
   where
     inject x0 = alpha * x0 + (1 - alpha) * s0
     step s x = alpha * x + (1 - alpha) * s
@@ -39,7 +39,7 @@ ewmaDirect alpha s0 (x0 : xs) = scanl' step (alpha * x0 + (1 - alpha) * s0) xs
 -- Input: gradient. Output: parameter update (not the new parameter).
 -- State: @(m, v, t)@ — first moment, second moment, timestep.
 adam :: Double -> Double -> Double -> Double -> Moore Double Double
-adam alpha beta1 beta2 eps = Moore inject step extract
+adam alpha beta1 beta2 eps = moore inject step extract
   where
     inject g0 =
       let m1 = (1 - beta1) * g0
